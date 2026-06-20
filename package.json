@@ -1,0 +1,14 @@
+{
+  "name": "physflux",
+  "version": "2.0.0",
+  "description": "物绘流光 PhysFlux - 国风文艺理科氛围的在线物理动力学模拟器",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

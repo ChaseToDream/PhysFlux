@@ -23,41 +23,25 @@
       theme: {
         extend: {
           colors: {
-            // 国风莫兰迪色板
             ink: {
-              50: '#F5F2EC',   // 宣纸色（浅色背景）
-              100: '#EDE8DF',
-              200: '#D9D2C5',
-              300: '#A8B5B0',  // 水墨青（主色）
-              400: '#8B9A94',
-              500: '#6B7B8C',  // 淡墨蓝（辅助）
-              600: '#5A6A78',
-              700: '#3E4A55',
-              800: '#2A323A',
-              900: '#1E2226',  // 墨夜色（深色背景）
+              50: '#F5F2EC', 100: '#EDE8DF', 200: '#D9D2C5',
+              300: '#A8B5B0', 400: '#8B9A94', 500: '#6B7B8C',
+              600: '#5A6A78', 700: '#3E4A55', 800: '#2A323A', 900: '#1E2226',
             },
-            ochre: {
-              light: '#E0C9B0',
-              DEFAULT: '#C9A88A', // 浅赭石（辅助）
-              dark: '#B08D6A',
-            },
-            gold: {
-              light: '#E6C49A',
-              DEFAULT: '#D4A574', // 流光金（强调）
-              dark: '#B8895A',
-            },
+            ochre: { light: '#E0C9B0', DEFAULT: '#C9A88A', dark: '#B08D6A' },
+            gold: { light: '#E6C49A', DEFAULT: '#D4A574', dark: '#B8895A' },
           },
           fontFamily: {
-            serif: ['"Noto Serif SC"', 'serif'],         // 中文宋体
-            mono: ['"JetBrains Mono"', 'monospace'],      // 英文等宽
+            serif: ['"Noto Serif SC"', 'serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
           },
         },
       },
     };
   </script>
 
-  <link rel="stylesheet" href="css/theme.css" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="/src/styles/theme.css" />
+  <link rel="stylesheet" href="/src/styles/style.css" />
 </head>
 <body class="font-serif bg-ink-50 text-ink-700 dark:bg-ink-900 dark:text-ink-200 transition-colors duration-500">
 
@@ -70,6 +54,11 @@
         <span class="title-tag">物理运动轨迹模拟器</span>
       </div>
       <div class="header-actions">
+        <!-- 页面导航 -->
+        <nav class="page-nav" id="pageNav">
+          <button class="nav-btn active" data-page="classic" title="经典物理模型">经典模型</button>
+          <button class="nav-btn" data-page="sandbox" title="自由沙盒画布">自由沙盒</button>
+        </nav>
         <button id="helpBtn" class="icon-btn" title="使用说明" aria-label="使用说明">
           <span>?</span>
         </button>
@@ -81,141 +70,137 @@
     </div>
   </header>
 
-  <!-- ============ 主体三栏布局 ============ -->
-  <main class="app-main">
-    <!-- 左侧参数控制面板 -->
-    <aside id="leftPanel" class="panel panel-left">
-      <!-- 题型预设 -->
-      <div class="panel-section collapsible">
-        <h2 class="panel-title collapsible-header" data-target="modelSelectSection">
-          <span>题型预设</span>
-          <span class="collapse-icon">▾</span>
-        </h2>
-        <div class="collapsible-body" id="modelSelectSection">
-          <select id="modelSelect" class="select-input">
-            <option value="projectile">平抛运动</option>
-            <option value="freefall">自由落体</option>
-            <option value="circular">圆周运动</option>
-            <option value="gravity">万有引力</option>
-            <option value="collision">弹性碰撞</option>
-            <option value="uniform">匀变速直线</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- 力学参数 -->
-      <div class="panel-section collapsible">
-        <h2 class="panel-title collapsible-header" data-target="paramControlsSection">
-          <span>力学参数</span>
-          <span class="collapse-icon">▾</span>
-        </h2>
-        <div class="collapsible-body" id="paramControlsSection">
-          <div id="paramControls" class="param-list">
-            <!-- 参数控件由 JS 动态生成 -->
-          </div>
-        </div>
-      </div>
-
-      <!-- 自定义物理参数 -->
-      <div class="panel-section collapsible">
-        <h2 class="panel-title collapsible-header" data-target="customParamsSection">
-          <span>自定义物理参数</span>
-          <span class="collapse-icon">▾</span>
-        </h2>
-        <div class="collapsible-body" id="customParamsSection">
-          <div id="customParamsPanel">
-            <!-- 自定义参数控件由 JS 动态生成 -->
-          </div>
-        </div>
-      </div>
-
-      <!-- 模拟物品库 -->
-      <div class="panel-section collapsible">
-        <h2 class="panel-title collapsible-header" data-target="objectLibrarySection">
-          <span>模拟物品库</span>
-          <span class="collapse-icon">▾</span>
-        </h2>
-        <div class="collapsible-body" id="objectLibrarySection">
-          <div id="objectLibraryPanel">
-            <!-- 物品库控件由 JS 动态生成 -->
-          </div>
-        </div>
-      </div>
-
-      <!-- 播放控制 -->
-      <div class="panel-section collapsible">
-        <h2 class="panel-title collapsible-header" data-target="playerSection">
-          <span>播放控制</span>
-          <span class="collapse-icon">▾</span>
-        </h2>
-        <div class="collapsible-body" id="playerSection">
-          <div class="player-controls">
-            <button id="btnPlay" class="btn btn-primary" title="播放/暂停">▶ 播放</button>
-            <button id="btnStep" class="btn" title="单步推演">⏭ 单步</button>
-            <button id="btnReset" class="btn" title="重置初始状态">↺ 重置</button>
-            <button id="btnClear" class="btn" title="清除轨迹">✕ 清除</button>
-            <button id="btnExport" class="btn" title="导出运动图像">⤓ 导出</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 方案管理 -->
-      <div class="panel-section collapsible">
-        <h2 class="panel-title collapsible-header" data-target="presetSection">
-          <span>方案管理</span>
-          <span class="collapse-icon">▾</span>
-        </h2>
-        <div class="collapsible-body" id="presetSection">
-          <div class="preset-controls">
-            <button id="btnSavePreset" class="btn btn-outline">保存当前方案</button>
-            <select id="presetSelect" class="select-input mt-2">
-              <option value="">— 选择已保存方案 —</option>
+  <!-- ============ 页面容器 ============ -->
+  <main id="appMain" class="app-main">
+    <!-- 经典模型页（原有功能） -->
+    <section id="page-classic" class="page page-active">
+      <!-- 左侧参数控制面板 -->
+      <aside id="leftPanel" class="panel panel-left">
+        <div class="panel-section collapsible">
+          <h2 class="panel-title collapsible-header" data-target="modelSelectSection">
+            <span>题型预设</span><span class="collapse-icon">▾</span>
+          </h2>
+          <div class="collapsible-body" id="modelSelectSection">
+            <select id="modelSelect" class="select-input">
+              <option value="projectile">平抛运动</option>
+              <option value="freefall">自由落体</option>
+              <option value="circular">圆周运动</option>
+              <option value="gravity">万有引力</option>
+              <option value="collision">弹性碰撞</option>
+              <option value="uniform">匀变速直线</option>
             </select>
-            <button id="btnLoadPreset" class="btn btn-outline mt-2">载入方案</button>
-            <button id="btnDeletePreset" class="btn btn-ghost mt-2">删除方案</button>
           </div>
         </div>
-      </div>
-    </aside>
 
-    <!-- 中央可视化画布 -->
-    <section class="canvas-wrap">
-      <canvas id="mainCanvas" class="main-canvas"></canvas>
-      <div id="hoverTip" class="hover-tip" hidden></div>
-      <div class="canvas-badge font-mono" id="canvasBadge">t = 0.00 s</div>
+        <div class="panel-section collapsible">
+          <h2 class="panel-title collapsible-header" data-target="paramControlsSection">
+            <span>力学参数</span><span class="collapse-icon">▾</span>
+          </h2>
+          <div class="collapsible-body" id="paramControlsSection">
+            <div id="paramControls" class="param-list"></div>
+          </div>
+        </div>
+
+        <div class="panel-section collapsible">
+          <h2 class="panel-title collapsible-header" data-target="customParamsSection">
+            <span>自定义物理参数</span><span class="collapse-icon">▾</span>
+          </h2>
+          <div class="collapsible-body" id="customParamsSection">
+            <div id="customParamsPanel"></div>
+          </div>
+        </div>
+
+        <div class="panel-section collapsible">
+          <h2 class="panel-title collapsible-header" data-target="objectLibrarySection">
+            <span>模拟物品库</span><span class="collapse-icon">▾</span>
+          </h2>
+          <div class="collapsible-body" id="objectLibrarySection">
+            <div id="objectLibraryPanel"></div>
+          </div>
+        </div>
+
+        <div class="panel-section collapsible">
+          <h2 class="panel-title collapsible-header" data-target="playerSection">
+            <span>播放控制</span><span class="collapse-icon">▾</span>
+          </h2>
+          <div class="collapsible-body" id="playerSection">
+            <div class="player-controls">
+              <button id="btnPlay" class="btn btn-primary" title="播放/暂停">▶ 播放</button>
+              <button id="btnStep" class="btn" title="单步推演">⏭ 单步</button>
+              <button id="btnReset" class="btn" title="重置初始状态">↺ 重置</button>
+              <button id="btnClear" class="btn" title="清除轨迹">✕ 清除</button>
+              <button id="btnExport" class="btn" title="导出运动图像">⤓ 导出PNG</button>
+              <button id="btnRecord" class="btn" title="录制 WebM 动画">● 录制</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-section collapsible">
+          <h2 class="panel-title collapsible-header" data-target="presetSection">
+            <span>方案管理</span><span class="collapse-icon">▾</span>
+          </h2>
+          <div class="collapsible-body" id="presetSection">
+            <div class="preset-controls">
+              <button id="btnSavePreset" class="btn btn-outline">保存当前方案</button>
+              <select id="presetSelect" class="select-input mt-2">
+                <option value="">— 选择已保存方案 —</option>
+              </select>
+              <button id="btnLoadPreset" class="btn btn-outline mt-2">载入方案</button>
+              <button id="btnDeletePreset" class="btn btn-ghost mt-2">删除方案</button>
+              <hr class="divider" />
+              <button id="btnExportScene" class="btn btn-outline">导出场景文件</button>
+              <button id="btnImportScene" class="btn btn-outline">导入场景文件</button>
+              <input type="file" id="sceneFileInput" accept=".json" hidden />
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 中央可视化画布 -->
+      <section class="canvas-wrap">
+        <canvas id="mainCanvas" class="main-canvas"></canvas>
+        <div id="hoverTip" class="hover-tip" hidden></div>
+        <div class="canvas-badge font-mono" id="canvasBadge">t = 0.00 s</div>
+        <div id="recordIndicator" class="record-indicator" hidden>
+          <span class="rec-dot"></span>录制中 <span id="recTime">00:00</span>
+        </div>
+      </section>
+
+      <!-- 右侧数据面板 -->
+      <aside id="rightPanel" class="panel panel-right">
+        <div class="panel-section">
+          <h2 class="panel-title">实时数据</h2>
+          <div class="data-table-wrap">
+            <table class="data-table font-mono">
+              <thead>
+                <tr><th>物体</th><th>位移(m)</th><th>速度(m/s)</th><th>加速度(m/s²)</th></tr>
+              </thead>
+              <tbody id="dataTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <h2 class="panel-title">位移 - 时间</h2>
+          <canvas id="chartST" class="mini-chart"></canvas>
+        </div>
+
+        <div class="panel-section">
+          <h2 class="panel-title">速度 - 时间</h2>
+          <canvas id="chartVT" class="mini-chart"></canvas>
+        </div>
+
+        <div class="panel-section">
+          <h2 class="panel-title">能量变化</h2>
+          <canvas id="chartEnergy" class="mini-chart"></canvas>
+        </div>
+      </aside>
     </section>
 
-    <!-- 右侧数据面板 -->
-    <aside id="rightPanel" class="panel panel-right">
-      <div class="panel-section">
-        <h2 class="panel-title">实时数据</h2>
-        <div class="data-table-wrap">
-          <table class="data-table font-mono">
-            <thead>
-              <tr>
-                <th>物体</th>
-                <th>位移(m)</th>
-                <th>速度(m/s)</th>
-                <th>加速度(m/s²)</th>
-              </tr>
-            </thead>
-            <tbody id="dataTableBody">
-              <!-- 数据行由 JS 动态生成 -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="panel-section">
-        <h2 class="panel-title">位移 - 时间</h2>
-        <canvas id="chartST" class="mini-chart"></canvas>
-      </div>
-
-      <div class="panel-section">
-        <h2 class="panel-title">速度 - 时间</h2>
-        <canvas id="chartVT" class="mini-chart"></canvas>
-      </div>
-    </aside>
+    <!-- 自由沙盒页（新功能） -->
+    <section id="page-sandbox" class="page page-sandbox">
+      <!-- 沙盒内容由 sandbox 页面模块动态构建 -->
+    </section>
   </main>
 
   <!-- ============ 底部说明区 ============ -->
@@ -243,35 +228,13 @@
         <h3>物绘流光 · 使用说明</h3>
         <button id="helpClose" class="help-close" aria-label="关闭">✕</button>
       </div>
-      <div class="help-modal-body" id="helpBody">
-        <!-- 帮助内容由 JS 动态生成 -->
-      </div>
+      <div class="help-modal-body" id="helpBody"></div>
     </div>
   </div>
 
-  <!-- 脚本按依赖顺序加载（纯静态，无构建） -->
-  <script src="js/utils/helpers.js"></script>
-  <script src="js/utils/storage.js"></script>
-  <script src="js/physics/vector.js"></script>
-  <script src="js/physics/models/base.js"></script>
-  <script src="js/physics/models/projectile.js"></script>
-  <script src="js/physics/models/freefall.js"></script>
-  <script src="js/physics/models/circular.js"></script>
-  <script src="js/physics/models/gravity.js"></script>
-  <script src="js/physics/models/collision.js"></script>
-  <script src="js/physics/models/uniform.js"></script>
-  <script src="js/physics/engine.js"></script>
-  <script src="js/config/presets.js"></script>
-  <script src="js/config/objects.js"></script>
-  <script src="js/render/axes.js"></script>
-  <script src="js/render/trail.js"></script>
-  <script src="js/render/canvas.js"></script>
-  <script src="js/render/charts.js"></script>
-  <script src="js/ui/controls.js"></script>
-  <script src="js/ui/player.js"></script>
-  <script src="js/ui/presets.js"></script>
-  <script src="js/ui/customParams.js"></script>
-  <script src="js/ui/objectLibrary.js"></script>
-  <script src="js/main.js"></script>
+  <!-- 录制提示 Toast -->
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
