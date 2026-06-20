@@ -3,6 +3,7 @@
  * ============================================================ */
 
 import { Storage } from '../utils/storage.js';
+import { showPrompt, showConfirm, showAlert } from '../utils/dialog.js';
 
 export class PresetManager {
   constructor(engine, controls, onLoaded) {
@@ -22,8 +23,8 @@ export class PresetManager {
     if (del) del.addEventListener('click', () => this.delete());
   }
 
-  save() {
-    const name = prompt('请输入方案名称：', `${this.engine.currentType}_${Date.now()}`);
+  async save() {
+    const name = await showPrompt('保存方案', `${this.engine.currentType}_${Date.now()}`, '请输入方案名称：');
     if (!name) return;
     const data = {
       modelType: this.engine.currentType,
@@ -35,21 +36,22 @@ export class PresetManager {
     document.getElementById('presetSelect').value = name;
   }
 
-  load() {
+  async load() {
     const select = document.getElementById('presetSelect');
     const name = select.value;
-    if (!name) { alert('请先选择一个方案'); return; }
+    if (!name) { await showAlert('提示', '请先选择一个方案'); return; }
     const presets = Storage.getPresets();
     const data = presets[name];
-    if (!data) { alert('方案不存在'); return; }
+    if (!data) { await showAlert('提示', '方案不存在'); return; }
     if (this.onLoaded) this.onLoaded(data.modelType, data.params, name);
   }
 
-  delete() {
+  async delete() {
     const select = document.getElementById('presetSelect');
     const name = select.value;
-    if (!name) { alert('请先选择一个方案'); return; }
-    if (!confirm(`确认删除方案「${name}」？`)) return;
+    if (!name) { await showAlert('提示', '请先选择一个方案'); return; }
+    const ok = await showConfirm('删除方案', `确认删除方案「${name}」？`, '删除');
+    if (!ok) return;
     Storage.deletePreset(name);
     this.refreshList();
   }

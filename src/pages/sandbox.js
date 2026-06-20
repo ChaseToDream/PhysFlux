@@ -12,6 +12,7 @@ import { EnergyChartRenderer } from '../render/energyChart.js';
 import { AnimationRecorder } from '../ui/recorder.js';
 import { Storage } from '../utils/storage.js';
 import { Helpers } from '../utils/helpers.js';
+import { showPrompt, showConfirm, showAlert } from '../utils/dialog.js';
 
 export class SandboxPage {
   constructor() {
@@ -52,13 +53,10 @@ export class SandboxPage {
     const canvas = document.getElementById('sandboxCanvas');
     this.renderer = new CanvasRenderer(canvas, this.engine);
     this.renderer.showEnergyOverlay = true;
-    // 沙盒中固定视角，不自动跟随
-    this.renderer._updateTransform = () => {
-      const { w, h } = this.renderer.transform;
-      this.renderer.transform.originX = w / 2;
-      this.renderer.transform.originY = h / 2;
-      this.renderer.transform.scale = 8;
-    };
+    // 沙盒中固定居中视角，不自动跟随物体；画布尺寸变化时通过 onResize 同步物理边界
+    this.renderer.viewMode = 'fixed';
+    this.renderer.fixedScale = 8;
+    this.renderer.onResize = () => this._syncBounds();
 
     // 能量图表
     this.chartEnergy = new EnergyChartRenderer(document.getElementById('sandboxChartEnergy'));
@@ -75,6 +73,9 @@ export class SandboxPage {
 
     // 添加几个示例物体
     this._addDemoBodies();
+
+    // 首次同步边界，确保初始边界与画布尺寸一致
+    this._syncBounds();
 
     // 启动数据循环
     this.startDataLoop();
@@ -246,6 +247,22 @@ export class SandboxPage {
     document.getElementById('sbSceneFile').addEventListener('change', (e) => this._importSceneFile(e));
     this._refreshSceneList();
 
+    // 物体列表事件委托：点击选中，点击删除按钮则移除（无需逐项重绑）
+    const bodyList = document.getElementById('sbBodyList');
+    bodyList.addEventListener('click', (e) => {
+      const item = e.target.closest('.obj-custom-item');
+      if (!item) return;
+      const id = parseInt(item.dataset.id, 10);
+      if (Number.isNaN(id)) return;
+      if (e.target.closest('.delete')) {
+        e.stopPropagation();
+        this.removeBody(id);
+        return;
+      }
+      const body = this.engine.getBodies().find((b) => b.id === id);
+      if (body) this.selectBody(body);
+    });
+
     // 画布交互
     let mouseDownPos = null;
     let isDragging = false;
@@ -322,6 +339,21 @@ export class SandboxPage {
   _isActive() {
     const page = document.getElementById('page-sandbox');
     return page && page.classList.contains('page-active');
+  }
+
+  /**
+   * 根据当前画布尺寸与渲染缩放同步沙盒物理边界。
+   * 使边界反弹区域始终与可视画布一致，窗口缩放时物理边界随之变化。
+   */
+  _syncBounds() {
+    if (!this.renderer || !this.model) return;
+    const { w, h } = this.renderer.transform;
+    // fixed 模式下直接用 fixedScale，避免首帧 _updateTransform 尚未运行时读到默认 scale
+    const scale = this.renderer.viewMode === 'fixed' ? this.renderer.fixedScale : this.renderer.transform.scale;
+    if (w < 2 || h < 2 || scale <= 0) return;
+    const halfW = w / 2 / scale;
+    const halfH = h / 2 / scale;
+    this.model.setBounds({ left: -halfW, right: halfW, bottom: -halfH, top: halfH });
   }
 
   _linkInputs(sliderId, inputId, callback) {
@@ -509,7 +541,7 @@ export class SandboxPage {
     });
   }
 
-  /** 更新物体列表 */
+  /** 更新物体列表（使用事件委托，避免逐项重绑监听） */
   _updateBodyList() {
     const list = document.getElementById('sbBodyList');
     const bodies = this.engine.getBodies();
@@ -529,18 +561,6 @@ export class SandboxPage {
         </div>
       </div>
     `).join('');
-
-    list.querySelectorAll('.obj-custom-item').forEach((item) => {
-      const id = parseInt(item.dataset.id);
-      item.addEventListener('click', () => {
-        const body = this.engine.getBodies().find((b) => b.id === id);
-        if (body) this.selectBody(body);
-      });
-      item.querySelector('.delete').addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.removeBody(id);
-      });
-    });
   }
 
   /** 添加示例物体 */
@@ -680,28 +700,36 @@ export class SandboxPage {
     this._updateBadge();
   }
 
-  _saveScene() {
-    const name = prompt('请输入场景名称：', `沙盒场景_${Date.now()}`);
+  async _saveScene() {
+    const name = await showPrompt('保存场景', `沙盒场景_${Date.now()}`, '请输入场景名称：');
     if (!name) return;
-    Storage.saveSandboxScene(name, this._serializeScene());
+    const data = this._serializeScene();
+    // 预检本地存储配额，避免大场景写入静默失败
+    const bytesNeeded = new Blob([JSON.stringify(data)]).size;
+    if (!(await Storage.hasQuota(bytesNeeded))) {
+      await showAlert('存储已满', '浏览器本地存储配额不足，无法保存该场景。请删除部分旧场景后重试。');
+      return;
+    }
+    Storage.saveSandboxScene(name, data);
     this._refreshSceneList();
     document.getElementById('sbSceneSelect').value = name;
     Helpers.toast('场景已保存');
   }
 
-  _loadScene() {
+  async _loadScene() {
     const name = document.getElementById('sbSceneSelect').value;
-    if (!name) { alert('请先选择一个场景'); return; }
+    if (!name) { await showAlert('提示', '请先选择一个场景'); return; }
     const all = Storage.getSandboxScenes();
-    if (!all[name]) { alert('场景不存在'); return; }
+    if (!all[name]) { await showAlert('提示', '场景不存在'); return; }
     this._loadSceneData(all[name]);
     Helpers.toast('场景已载入');
   }
 
-  _deleteScene() {
+  async _deleteScene() {
     const name = document.getElementById('sbSceneSelect').value;
-    if (!name) { alert('请先选择一个场景'); return; }
-    if (!confirm(`确认删除场景「${name}」？`)) return;
+    if (!name) { await showAlert('提示', '请先选择一个场景'); return; }
+    const ok = await showConfirm('删除场景', `确认删除场景「${name}」？`, '删除');
+    if (!ok) return;
     Storage.deleteSandboxScene(name);
     this._refreshSceneList();
   }
@@ -768,5 +796,14 @@ export class SandboxPage {
       this.renderer.refreshTheme();
       this.renderer.render();
     }
+  }
+
+  /** 销毁页面：释放所有子组件的全局监听与动画循环 */
+  destroy() {
+    this.stopDataLoop();
+    this.stopPlay();
+    if (this.renderer) this.renderer.destroy();
+    if (this.chartEnergy) this.chartEnergy.destroy();
+    this._initialized = false;
   }
 }

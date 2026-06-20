@@ -18,6 +18,12 @@ export class CanvasRenderer {
 
     this.transform = { w: 0, h: 0, scale: 10, originX: 0, originY: 0 };
     this.targetScale = 10;
+    /** 视图模式：'auto' 跟随物体自适应，'fixed' 固定居中视角（沙盒用） */
+    this.viewMode = 'auto';
+    /** fixed 模式下的固定缩放（像素/米） */
+    this.fixedScale = 8;
+    /** resize 完成后回调（供外部同步依赖画布尺寸的状态，如沙盒物理边界） */
+    this.onResize = null;
     this.running = false;
     this.lastTime = 0;
     this.mouse = { x: -1, y: -1, inside: false };
@@ -54,8 +60,10 @@ export class CanvasRenderer {
   }
 
   _bindEvents() {
-    window.addEventListener('resize', Helpers.debounce(() => this.resize(), 100));
-    window.addEventListener('load', () => { this.resize(); this.render(); });
+    this._resizeHandler = Helpers.debounce(() => this.resize(), 100);
+    this._loadHandler = () => { this.resize(); this.render(); };
+    window.addEventListener('resize', this._resizeHandler);
+    window.addEventListener('load', this._loadHandler);
 
     this.canvas.addEventListener('mousemove', (e) => {
       const rect = this.canvas.getBoundingClientRect();
@@ -69,10 +77,29 @@ export class CanvasRenderer {
     });
   }
 
+  /** 销毁渲染器：停止动画循环并移除全局监听 */
+  destroy() {
+    this.stop();
+    if (this._resizeHandler) {
+      window.removeEventListener('resize', this._resizeHandler);
+      this._resizeHandler = null;
+    }
+    if (this._loadHandler) {
+      window.removeEventListener('load', this._loadHandler);
+      this._loadHandler = null;
+    }
+  }
+
   resize() {
     const rect = this.canvas.parentElement.getBoundingClientRect();
-    const w = rect.width || window.innerWidth - 620;
-    const h = rect.height || window.innerHeight - 204;
+    // 兜底尺寸从 CSS 布局变量读取，与 style.css 保持同步，避免魔数漂移
+    const css = getComputedStyle(document.documentElement);
+    const headerH = parseFloat(css.getPropertyValue('--header-h')) || 64;
+    const footerH = parseFloat(css.getPropertyValue('--footer-h')) || 140;
+    const panelW = (parseFloat(css.getPropertyValue('--panel-left-w')) || 300)
+      + (parseFloat(css.getPropertyValue('--panel-right-w')) || 320);
+    const w = rect.width || window.innerWidth - panelW;
+    const h = rect.height || window.innerHeight - headerH - footerH;
     const dpr = window.devicePixelRatio || 1;
     this.canvas.width = Math.max(1, w * dpr);
     this.canvas.height = Math.max(1, h * dpr);
@@ -81,10 +108,25 @@ export class CanvasRenderer {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.transform.w = w;
     this.transform.h = h;
+    // fixed 模式下立即确定缩放，供 onResize 回调读取正确值
+    if (this.viewMode === 'fixed') {
+      this.transform.scale = this.fixedScale;
+      this.transform.originX = w / 2;
+      this.transform.originY = h / 2;
+    }
     this.axesRenderer.invalidate();
+    if (this.onResize) this.onResize();
   }
 
   _updateTransform() {
+    // fixed 模式：固定居中视角，不跟随物体自适应
+    if (this.viewMode === 'fixed') {
+      const { w, h } = this.transform;
+      this.transform.originX = w / 2;
+      this.transform.originY = h / 2;
+      this.transform.scale = this.fixedScale;
+      return;
+    }
     const bodies = this.engine.getBodies();
     const { w, h } = this.transform;
     if (bodies.length === 0) {
@@ -94,19 +136,8 @@ export class CanvasRenderer {
       return;
     }
 
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const body of bodies) {
-      minX = Math.min(minX, body.position.x);
-      maxX = Math.max(maxX, body.position.x);
-      minY = Math.min(minY, body.position.y);
-      maxY = Math.max(maxY, body.position.y);
-      for (const p of body.trail) {
-        minX = Math.min(minX, p.x);
-        maxX = Math.max(maxX, p.x);
-        minY = Math.min(minY, p.y);
-        maxY = Math.max(maxY, p.y);
-      }
-    }
+    const bounds = this._computeBounds(bodies);
+    let { minX, maxX, minY, maxY } = bounds;
     const padX = Math.max(5, (maxX - minX) * 0.15);
     const padY = Math.max(5, (maxY - minY) * 0.15);
     minX -= padX; maxX += padX;
@@ -128,24 +159,46 @@ export class CanvasRenderer {
     this.transform.originY += (targetOriginY - this.transform.originY) * 0.1;
   }
 
-  snapTransform() {
-    this._updateTransform();
-    this.transform.scale = this.targetScale;
-    const bodies = this.engine.getBodies();
-    if (bodies.length === 0) return;
+  /**
+   * 计算所有物体位置+轨迹的包围盒。
+   * 为避免每帧遍历全部轨迹点（上限 2000 点/物体），对长轨迹采用步长采样，
+   * 每物体最多采样约 64 个点，包围盒精度足够用于视图自适应。
+   */
+  _computeBounds(bodies) {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const body of bodies) {
       minX = Math.min(minX, body.position.x);
       maxX = Math.max(maxX, body.position.x);
       minY = Math.min(minY, body.position.y);
       maxY = Math.max(maxY, body.position.y);
-      for (const p of body.trail) {
-        minX = Math.min(minX, p.x);
-        maxX = Math.max(maxX, p.x);
-        minY = Math.min(minY, p.y);
-        maxY = Math.max(maxY, p.y);
+      const trail = body.trail;
+      const len = trail.length;
+      if (len === 0) continue;
+      // 步长采样：轨迹越长步长越大，保证每物体最多约 64 次比较
+      const stride = len > 64 ? Math.floor(len / 64) : 1;
+      for (let i = 0; i < len; i += stride) {
+        const p = trail[i];
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
       }
+      // 确保最后一个点也被纳入（轨迹末端往往是当前视野关键点）
+      const last = trail[len - 1];
+      if (last.x < minX) minX = last.x;
+      if (last.x > maxX) maxX = last.x;
+      if (last.y < minY) minY = last.y;
+      if (last.y > maxY) maxY = last.y;
     }
+    return { minX, maxX, minY, maxY };
+  }
+
+  snapTransform() {
+    this._updateTransform();
+    this.transform.scale = this.targetScale;
+    const bodies = this.engine.getBodies();
+    if (bodies.length === 0) return;
+    const { minX, maxX, minY, maxY } = this._computeBounds(bodies);
     const padX = Math.max(5, (maxX - minX) * 0.15);
     const padY = Math.max(5, (maxY - minY) * 0.15);
     const cx = (minX + maxX) / 2;
@@ -191,10 +244,8 @@ export class CanvasRenderer {
     }
     this._updateTransform();
 
-    ctx.fillStyle = theme.bg;
+    // 静态层（背景+网格+坐标轴）由 axesRenderer 离屏缓存后整体 blit
     ctx.globalAlpha = 1;
-    ctx.fillRect(0, 0, transform.w, transform.h);
-
     this.axesRenderer.draw(ctx, transform, theme);
 
     const bodies = this.engine.getBodies();

@@ -1,6 +1,8 @@
 /* ============================================================
  * 物绘流光 PhysFlux - 坐标轴渲染器
- * 绘制水墨风坐标轴、刻度、网格，支持离屏缓存
+ * 绘制水墨风坐标轴、刻度、网格，作为静态层离屏缓存
+ * 缓存键含原点（按像素取整）与缩放（取 1 位小数），平移/缩放未越过
+ * 取整阈值时直接 blit，避免每帧重绘网格与刻度文本。
  * ============================================================ */
 
 export class AxesRenderer {
@@ -15,7 +17,13 @@ export class AxesRenderer {
 
   draw(ctx, transform, theme) {
     if (transform.w < 2 || transform.h < 2) return;
-    const key = `${transform.w}x${transform.h}_${transform.scale.toFixed(1)}_${theme.axis}`;
+    // 原点按像素取整参与缓存键：平移不足 1px 时复用缓存，兼顾正确性与性能
+    const key = [
+      transform.w, 'x', transform.h,
+      '_s', transform.scale.toFixed(1),
+      '_o', Math.round(transform.originX), Math.round(transform.originY),
+      '_bg', theme.bg, '_ax', theme.axis, '_gr', theme.grid, '_tx', theme.text,
+    ].join('');
     if (!this.cacheValid || this.cacheKey !== key) {
       this._renderToCache(transform, theme);
       this.cacheKey = key;
@@ -29,7 +37,10 @@ export class AxesRenderer {
     this.cacheCanvas.width = w;
     this.cacheCanvas.height = h;
     const ctx = this.cacheCtx;
-    ctx.clearRect(0, 0, w, h);
+    // 静态层底色：背景填充一并纳入缓存，render() 无需再单独 fillRect
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = theme.bg;
+    ctx.fillRect(0, 0, w, h);
 
     // 网格
     ctx.strokeStyle = theme.grid;

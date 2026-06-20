@@ -32,6 +32,8 @@ export class CollisionModel extends BaseModel {
       velocity: new Vec2(v1, 0),
       color: '#A8B5B0',
       label: '物体A',
+      radius: 8,
+      collisionRadius: 1.5,
     });
     const bodyB = this.createBody({
       mass: m2,
@@ -39,6 +41,8 @@ export class CollisionModel extends BaseModel {
       velocity: new Vec2(0, 0),
       color: '#C9A88A',
       label: '物体B',
+      radius: 8,
+      collisionRadius: 1.5,
     });
     this.bodies = [bodyA, bodyB];
     return this.bodies;
@@ -58,26 +62,37 @@ export class CollisionModel extends BaseModel {
     this.pushTrail(a);
     this.pushTrail(b);
 
-    const dist = a.position.distanceTo(b.position);
-    const collisionRadius = 1.5;
-    const minDist = collisionRadius * 2;
-    if (!this._collided && dist <= minDist && a.velocity.x > b.velocity.x) {
-      const m1 = a.mass, m2 = b.mass;
-      const u1 = a.velocity.x, u2 = b.velocity.x;
-      const e = this._e;
-      const totalM = m1 + m2;
-      const v1New = (m1 * u1 + m2 * u2 + m2 * e * (u2 - u1)) / totalM;
-      const v2New = (m1 * u1 + m2 * u2 + m1 * e * (u1 - u2)) / totalM;
-      a.velocity.x = v1New;
-      b.velocity.x = v2New;
-      const overlap = minDist - dist;
-      a.position.x -= overlap / 2;
-      b.position.x += overlap / 2;
-      this._collided = true;
+    // 二维碰撞检测：基于物体碰撞半径之和与连心方向
+    const delta = b.position.sub(a.position);
+    const dist = delta.length();
+    const minDist = a.collisionRadius + b.collisionRadius;
+    if (dist > 0 && !this._collided && dist <= minDist) {
+      const n = delta.scale(1 / dist);
+      // 沿法线方向的相对速度（接近为正）
+      const relVel = a.velocity.sub(b.velocity);
+      const relAlongN = relVel.dot(n);
+      if (relAlongN > 0) {
+        const m1 = a.mass, m2 = b.mass;
+        const e = this._e;
+        // 冲量大小 j = -(1+e)·vRel / (1/m1 + 1/m2)；这里 vRel 已是接近量，取正
+        const j = (1 + e) * relAlongN / (1 / m1 + 1 / m2);
+        const impulse = n.scale(j);
+        a.velocity.addInPlace(impulse.scale(-1 / m1));
+        b.velocity.addInPlace(impulse.scale(1 / m2));
+        // 位置修正：按质量反比分离，避免穿透
+        const overlap = minDist - dist;
+        const totalM = m1 + m2;
+        a.position.addInPlace(n.scale(-overlap * (m2 / totalM)));
+        b.position.addInPlace(n.scale(overlap * (m1 / totalM)));
+        this._collided = true;
+      }
     }
 
-    if (this._collided && a.position.x > 30 && b.position.x > 30) this.finished = true;
-    if (this._collided && a.position.x < -30 && b.position.x < -30) this.finished = true;
+    // 二维离场判定：两物体均离开可视区域则结束
+    const outOfBounds = (p) => Math.abs(p.x) > 35 || Math.abs(p.y) > 25;
+    if (this._collided && outOfBounds(a.position) && outOfBounds(b.position)) this.finished = true;
+    // 超时保护，避免长时间不结束
+    if (this.elapsedTime > 30) this.finished = true;
   }
 
   getFormula() {

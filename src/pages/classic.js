@@ -230,13 +230,14 @@ export class ClassicPage {
   /** 页面激活时调用 */
   onShow() {
     if (!this._initialized) this.init();
+    this.player.activate();
     this.startDataLoop();
     setTimeout(() => this.renderer.resize(), 50);
   }
 
   /** 页面隐藏时调用 */
   onHide() {
-    this.player.stop();
+    this.player.deactivate();
     this.stopDataLoop();
   }
 
@@ -246,5 +247,16 @@ export class ClassicPage {
       this.renderer.refreshTheme();
       this.renderer.render();
     }
+  }
+
+  /** 销毁页面：释放所有子组件的全局监听与动画循环 */
+  destroy() {
+    this.stopDataLoop();
+    if (this.player) this.player.destroy();
+    if (this.renderer) this.renderer.destroy();
+    if (this.chartST) this.chartST.destroy();
+    if (this.chartVT) this.chartVT.destroy();
+    if (this.chartEnergy) this.chartEnergy.destroy();
+    this._initialized = false;
   }
 }

@@ -12,8 +12,17 @@ export class EnergyChartRenderer {
     this.samples = [];
     this._counter = 0;
     this.maxSamples = 200;
+    this._resizeHandler = Helpers.debounce(() => this.resize(), 100);
     this.resize();
-    window.addEventListener('resize', Helpers.debounce(() => this.resize(), 100));
+    window.addEventListener('resize', this._resizeHandler);
+  }
+
+  /** 销毁渲染器：移除全局监听 */
+  destroy() {
+    if (this._resizeHandler) {
+      window.removeEventListener('resize', this._resizeHandler);
+      this._resizeHandler = null;
+    }
   }
 
   resize() {

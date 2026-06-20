@@ -36,6 +36,9 @@ export class ProjectileModel extends BaseModel {
     });
     this.bodies = [body];
     this._gravity = g;
+    // 记录发射点与重力方向单位向量，用于统一落地判定（兼容自定义重力方向）
+    this._launchPos = body.position.clone();
+    this._gHat = g.length() > 1e-6 ? g.normalize() : new Vec2(0, 0);
     return this.bodies;
   }
 
@@ -55,12 +58,18 @@ export class ProjectileModel extends BaseModel {
     body.force = new Vec2(body.mass * ax, body.mass * ay);
     this.pushTrail(body);
 
-    if (!this.engine || !this.engine.customGravity || !this.engine.customGravity.enabled) {
-      if (body.position.y <= -0.5 && this.elapsedTime > 0.1) {
-        body.position.y = 0;
+    // 统一落地判定：沿重力方向位移超过 0.5m 即视为落地
+    // 兼容默认重力与自定义重力（任意方向），不再因 customGravity 开关而跳过
+    if (this._gHat.lengthSq() > 0) {
+      const fallen = body.position.sub(this._launchPos).dot(this._gHat);
+      if (fallen >= 0.5 && this.elapsedTime > 0.1) {
+        // 将抛体拉回发射平面（沿重力方向归零），避免穿透地面
+        body.position = body.position.sub(this._gHat.scale(fallen));
         this.finished = true;
       }
     }
+    // 超时或远离视野保护：无重力或异常情况下避免永不结束
+    if (this.elapsedTime > 60 || body.position.length() > 500) this.finished = true;
   }
 
   getFormula() {

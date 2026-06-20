@@ -22,6 +22,11 @@ export class PhysicsEngine {
     this.customObject = null;
     /** 空气阻力配置（新增） */
     this.airResistance = { enabled: false, coefficient: 0.05 };
+    /**
+     * 数值积分方法：'euler'（半隐式欧拉，默认）| 'rk4'（四阶龙格-库塔，适合轨道/引力系统）
+     * 由各模型在 step 中自行选择使用；不支持的模型回退到 euler。
+     */
+    this.integrator = 'euler';
   }
 
   /* ---------- 模型注册 ---------- */
@@ -93,6 +98,11 @@ export class PhysicsEngine {
     this.airResistance = Object.assign({}, this.airResistance, config);
   }
 
+  /** 设置数值积分方法（'euler' | 'rk4'），不重置当前模拟状态 */
+  setIntegrator(name) {
+    if (name === 'euler' || name === 'rk4') this.integrator = name;
+  }
+
   buildDefaultParams(type) {
     const schema = this.getParamSchema(type);
     const params = {};
@@ -119,13 +129,14 @@ export class PhysicsEngine {
       this.currentModel.step(subDt);
       if (this.currentModel.isFinished()) break;
     }
-    this.currentModel.decayTrails(0.997);
+    this.currentModel.decayTrails(scaledDt);
   }
 
   singleStep() {
     if (!this.currentModel) return;
-    this.currentModel.step(this.fixedDt * this.timeScale);
-    this.currentModel.decayTrails(0.997);
+    const dt = this.fixedDt * this.timeScale;
+    this.currentModel.step(dt);
+    this.currentModel.decayTrails(dt);
   }
 
   reset() {

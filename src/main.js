@@ -11,6 +11,9 @@ import { Storage } from './utils/storage.js';
 (function () {
   'use strict';
 
+  /* ---------- 0. 存储版本迁移 ---------- */
+  Storage.migrate();
+
   /* ---------- 1. 创建页面实例 ---------- */
   const classicPage = new ClassicPage();
   const sandboxPage = new SandboxPage();

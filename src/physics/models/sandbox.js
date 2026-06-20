@@ -5,8 +5,6 @@
  * ============================================================ */
 
 import { BaseModel } from './base.js';
-import { Vec2 } from '../vector.js';
-import { Helpers } from '../../utils/helpers.js';
 
 export class SandboxModel extends BaseModel {
   static label = '自由沙盒';
@@ -69,43 +67,44 @@ export class SandboxModel extends BaseModel {
     super.step(dt);
     if (this.finished) return;
 
-    // 1. 计算每个物体所受合力
+    const g = this.getGravityVector();
+    const airEnabled = this.engine && this.engine.airResistance && this.engine.airResistance.enabled;
+    const airK = airEnabled ? (this.engine.airResistance.coefficient || 0) : 0;
+    const G = SandboxModel.G_SCALED;
+
+    // 1. 计算每个物体所受合力（直接累加到 body.force，避免临时向量）
     for (const body of this.bodies) {
-      let force = new Vec2(0, 0);
+      const force = body.force;
+      force.set(body.mass * g.x, body.mass * g.y);
 
-      // 重力
-      const g = this.getGravityVector();
-      force.addInPlace(new Vec2(body.mass * g.x, body.mass * g.y));
-
-      // 空气阻力（线性阻力 F = -k·v）
-      if (this.engine && this.engine.airResistance && this.engine.airResistance.enabled) {
-        const k = this.engine.airResistance.coefficient || 0;
-        force.addInPlace(body.velocity.scale(-k * body.mass));
+      // 空气阻力（线性阻力 F = -k·m·v）
+      if (airEnabled && airK > 0) {
+        force.addScaledInPlace(body.velocity, -airK * body.mass);
       }
 
       // 物体间万有引力
       if (this.interactionGravity) {
         for (const other of this.bodies) {
           if (other === body) continue;
-          const rel = other.position.sub(body.position);
-          const distSq = rel.lengthSq();
+          const rx = other.position.x - body.position.x;
+          const ry = other.position.y - body.position.y;
+          const distSq = rx * rx + ry * ry;
+          if (distSq < 0.25) continue; // 避免奇点
           const dist = Math.sqrt(distSq);
-          if (dist < 0.5) continue; // 避免奇点
-          const G = SandboxModel.G_SCALED;
           const fMag = (G * body.mass * other.mass) / distSq;
-          const fDir = rel.scale(1 / dist);
-          force.addInPlace(fDir.scale(fMag));
+          const f = fMag / dist;
+          force.x += rx * f;
+          force.y += ry * f;
         }
       }
 
-      body.force = force;
-      body.acceleration = force.scale(1 / body.mass);
+      body.acceleration.set(force.x / body.mass, force.y / body.mass);
     }
 
-    // 2. 积分更新速度与位置（半隐式欧拉）
+    // 2. 积分更新速度与位置（半隐式欧拉，原地更新避免 scale 临时对象）
     for (const body of this.bodies) {
-      body.velocity.addInPlace(body.acceleration.scale(dt));
-      body.position.addInPlace(body.velocity.scale(dt));
+      body.velocity.addScaledInPlace(body.acceleration, dt);
+      body.position.addScaledInPlace(body.velocity, dt);
       this.pushTrail(body, 800);
     }
 
@@ -120,40 +119,87 @@ export class SandboxModel extends BaseModel {
     }
   }
 
-  /** 二维弹性碰撞解算 */
+  /** 二维弹性碰撞解算（使用均匀空间网格加速，避免 O(n²) 暴力遍历） */
   _resolveCollisions() {
-    const n = this.bodies.length;
+    const bodies = this.bodies;
+    const n = bodies.length;
+    if (n < 2) return;
+
+    // 网格单元尺寸取最大碰撞直径，保证潜在碰撞对必在相邻 9 格内
+    let maxR = 0;
+    for (let i = 0; i < n; i++) maxR = Math.max(maxR, bodies[i].collisionRadius);
+    const cellSize = Math.max(0.5, maxR * 2);
+
+    // 构建均匀网格：key = "cx,cy" -> [bodyIndex,...]
+    const grid = new Map();
+    const keyOf = (cx, cy) => cx + ',' + cy;
     for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        const a = this.bodies[i];
-        const b = this.bodies[j];
-        const rel = b.position.sub(a.position);
-        const dist = rel.length();
-        const minDist = a.collisionRadius + b.collisionRadius;
-        if (dist < minDist && dist > 1e-6) {
-          // 法向量
-          const n = rel.scale(1 / dist);
-          // 相对速度
-          const relVel = b.velocity.sub(a.velocity);
-          const velAlongNormal = relVel.dot(n);
-          // 相离则不处理
-          if (velAlongNormal > 0) continue;
-          // 冲量计算
-          const e = this.elasticity;
-          const invMassA = 1 / a.mass;
-          const invMassB = 1 / b.mass;
-          const impulse = (-(1 + e) * velAlongNormal) / (invMassA + invMassB);
-          const impulseVec = n.scale(impulse);
-          a.velocity.addInPlace(impulseVec.scale(-invMassA));
-          b.velocity.addInPlace(impulseVec.scale(invMassB));
-          // 位置修正（分离避免穿透）
-          const overlap = minDist - dist;
-          const correction = n.scale(overlap / 2);
-          a.position.addInPlace(correction.scale(-1));
-          b.position.addInPlace(correction);
+      const b = bodies[i];
+      const cx = Math.floor(b.position.x / cellSize);
+      const cy = Math.floor(b.position.y / cellSize);
+      const key = keyOf(cx, cy);
+      let cell = grid.get(key);
+      if (!cell) { cell = []; grid.set(key, cell); }
+      cell.push(i);
+    }
+
+    const e = this.elasticity;
+    const checked = new Set();
+    for (let i = 0; i < n; i++) {
+      const a = bodies[i];
+      const cx = Math.floor(a.position.x / cellSize);
+      const cy = Math.floor(a.position.y / cellSize);
+      // 仅检查当前格与右/下相邻格（加上自身格），避免重复对
+      for (let dx = 0; dx <= 1; dx++) {
+        for (let dy = (dx === 0 ? 0 : -1); dy <= 1; dy++) {
+          const cell = grid.get(keyOf(cx + dx, cy + dy));
+          if (!cell) continue;
+          for (const j of cell) {
+            if (j <= i) continue;
+            const pairKey = i * n + j;
+            if (checked.has(pairKey)) continue;
+            checked.add(pairKey);
+            this._resolvePair(a, bodies[j], e);
+          }
         }
       }
     }
+  }
+
+  /** 解算两个物体间的碰撞冲量与位置修正（按质量反比分离） */
+  _resolvePair(a, b, e) {
+    const nx = b.position.x - a.position.x;
+    const ny = b.position.y - a.position.y;
+    const dist = Math.sqrt(nx * nx + ny * ny);
+    const minDist = a.collisionRadius + b.collisionRadius;
+    if (dist >= minDist || dist <= 1e-6) return;
+    const invDist = 1 / dist;
+    const nrx = nx * invDist;
+    const nry = ny * invDist;
+    // 沿法线方向的相对速度（b 相对 a）
+    const rvx = b.velocity.x - a.velocity.x;
+    const rvy = b.velocity.y - a.velocity.y;
+    const velAlongNormal = rvx * nrx + rvy * nry;
+    if (velAlongNormal > 0) return; // 相离
+    const invMassA = 1 / a.mass;
+    const invMassB = 1 / b.mass;
+    const impulse = (-(1 + e) * velAlongNormal) / (invMassA + invMassB);
+    // 冲量向量 = n * impulse，直接加权更新速度，避免临时向量
+    const jx = nrx * impulse;
+    const jy = nry * impulse;
+    a.velocity.x -= jx * invMassA;
+    a.velocity.y -= jy * invMassA;
+    b.velocity.x += jx * invMassB;
+    b.velocity.y += jy * invMassB;
+    // 位置修正：按质量反比分离，避免穿透（轻物退让更多）
+    const overlap = minDist - dist;
+    const totalInv = invMassA + invMassB;
+    const corrA = -overlap * (invMassA / totalInv);
+    const corrB = overlap * (invMassB / totalInv);
+    a.position.x += nrx * corrA;
+    a.position.y += nry * corrA;
+    b.position.x += nrx * corrB;
+    b.position.y += nry * corrB;
   }
 
   /** 边界反弹处理 */

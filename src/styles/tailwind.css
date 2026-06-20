@@ -1,0 +1,6 @@
+/* 物绘流光 PhysFlux - Tailwind 入口
+ * 由 PostCSS 在构建时编译，替代原 CDN 运行时方案
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

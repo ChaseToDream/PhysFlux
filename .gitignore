@@ -32,5 +32,4 @@ build/
 .env.*.local
 
 # other
-.trae/
 docs/

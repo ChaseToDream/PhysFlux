@@ -5,6 +5,7 @@
 
 import { Storage } from '../utils/storage.js';
 import { Helpers } from '../utils/helpers.js';
+import { showPrompt, showConfirm, showAlert } from '../utils/dialog.js';
 
 export class CustomParamsManager {
   constructor(engine, renderer, player) {
@@ -114,6 +115,18 @@ export class CustomParamsManager {
           </label>
         </div>
 
+        <!-- 数值积分方法（轨道/引力系统精度选项） -->
+        <div class="custom-param-item">
+          <div class="param-label">
+            <span class="param-name">数值积分方法</span>
+            <span class="param-hint" style="font-size:11px;">RK4 适合长时轨道，精度更高</span>
+          </div>
+          <select id="cpIntegrator" class="select-input">
+            <option value="euler">半隐式欧拉（默认）</option>
+            <option value="rk4">四阶龙格-库塔 RK4</option>
+          </select>
+        </div>
+
         <div class="custom-scheme-section">
           <div class="scheme-controls">
             <button id="cpSaveScheme" class="btn btn-outline btn-sm">保存方案</button>
@@ -179,6 +192,13 @@ export class CustomParamsManager {
     document.getElementById('cpEnergyOverlay').addEventListener('change', (e) => {
       this.renderer.showEnergyOverlay = e.target.checked;
       this.renderer.render();
+    });
+
+    // 数值积分方法
+    const integratorSel = document.getElementById('cpIntegrator');
+    integratorSel.addEventListener('change', (e) => {
+      this.engine.setIntegrator(e.target.value);
+      Storage.setIntegrator(e.target.value);
     });
 
     document.getElementById('cpSaveScheme').addEventListener('click', () => this._saveScheme());
@@ -253,8 +273,8 @@ export class CustomParamsManager {
     document.getElementById('customParamsPanel').classList.toggle('disabled-state', disabled);
   }
 
-  _saveScheme() {
-    const name = prompt('请输入方案名称：', `自定义参数_${Date.now()}`);
+  async _saveScheme() {
+    const name = await showPrompt('保存方案', `自定义参数_${Date.now()}`, '请输入方案名称：');
     if (!name) return;
     const data = {
       config: Helpers.deepClone(this.config),
@@ -266,13 +286,13 @@ export class CustomParamsManager {
     document.getElementById('cpSchemeSelect').value = name;
   }
 
-  _loadScheme() {
+  async _loadScheme() {
     const select = document.getElementById('cpSchemeSelect');
     const name = select.value;
-    if (!name) { alert('请先选择一个方案'); return; }
+    if (!name) { await showAlert('提示', '请先选择一个方案'); return; }
     const all = Storage.getCustomParams();
     const data = all[name];
-    if (!data) { alert('方案不存在'); return; }
+    if (!data) { await showAlert('提示', '方案不存在'); return; }
     this.config = Helpers.deepClone(data.config);
     if (data.airConfig) this.airConfig = Helpers.deepClone(data.airConfig);
     this._syncUIFromConfig();
@@ -280,11 +300,12 @@ export class CustomParamsManager {
     this._applyAirConfig();
   }
 
-  _deleteScheme() {
+  async _deleteScheme() {
     const select = document.getElementById('cpSchemeSelect');
     const name = select.value;
-    if (!name) { alert('请先选择一个方案'); return; }
-    if (!confirm(`确认删除方案「${name}」？`)) return;
+    if (!name) { await showAlert('提示', '请先选择一个方案'); return; }
+    const ok = await showConfirm('删除方案', `确认删除方案「${name}」？`, '删除');
+    if (!ok) return;
     Storage.deleteCustomParams(name);
     this._refreshSchemeList();
   }
@@ -325,5 +346,10 @@ export class CustomParamsManager {
       this._syncUIFromConfig();
       if (this.config.enabled) this._applyConfig();
     }
+    // 恢复数值积分方法偏好
+    const integrator = Storage.getIntegrator();
+    this.engine.setIntegrator(integrator);
+    const sel = document.getElementById('cpIntegrator');
+    if (sel) sel.value = integrator;
   }
 }

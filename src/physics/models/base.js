@@ -82,8 +82,16 @@ export class BaseModel {
     if (body.trail.length > maxPoints) body.trail.shift();
   }
 
-  /** 衰减所有物体轨迹点的 alpha */
-  decayTrails(factor = 0.998) {
+  /**
+   * 衰减所有物体轨迹点的 alpha（与帧率解耦）
+   * 按真实经过时间 dt 计算衰减系数 factor = 0.5^(dt/halfLife)，
+   * 使轨迹在任意帧率下保持一致的视觉消退速度。
+   * @param {number} dt 本帧经过的模拟时间（秒）
+   * @param {number} halfLife alpha 衰减一半所需时间（秒），默认 4s
+   */
+  decayTrails(dt, halfLife = 4) {
+    if (dt <= 0) return;
+    const factor = Math.pow(0.5, dt / halfLife);
     for (const body of this.bodies) {
       for (const p of body.trail) p.alpha *= factor;
     }
@@ -104,27 +112,17 @@ export class BaseModel {
   }
 
   /**
-   * 计算当前系统重力势能 Ep = Σ m·g·h
-   * 以 y=0 为零势能参考面，g 取重力向量大小
+   * 计算当前系统重力势能 Ep = -Σ m·(g·r)
+   * 以原点为零势能参考点，g 为重力向量，r 为位置向量。
+   * 当重力向下（g.y<0）时，y 越高势能越大，符合直觉。
    */
   getPotentialEnergy() {
     const g = this.getGravityVector();
-    const gMag = g.length();
     let ep = 0;
     for (const body of this.bodies) {
-      // 势能 = m * |g| * h，h 为沿重力反方向的高度
-      // 简化：取 position 在重力方向上的投影
-      ep += body.mass * gMag * (body.position.dot(g.normalize()) > 0
-        ? body.position.dot(g.normalize())
-        : 0);
+      ep -= body.mass * body.position.dot(g);
     }
-    // 更直观的实现：势能 = -m·(g·r)，r 为位置向量
-    // 当重力向下时，y 越高势能越大
-    let ep2 = 0;
-    for (const body of this.bodies) {
-      ep2 -= body.mass * body.position.dot(g);
-    }
-    return ep2;
+    return ep;
   }
 
   /** 总机械能 */

@@ -4,6 +4,7 @@
 
 import { ObjectLibrary } from '../config/objects.js';
 import { Storage } from '../utils/storage.js';
+import { showConfirm, showAlert } from '../utils/dialog.js';
 
 export class ObjectLibraryManager {
   constructor(engine, renderer, player) {
@@ -94,8 +95,8 @@ export class ObjectLibraryManager {
       });
     });
 
-    document.getElementById('objApplyOnce').addEventListener('click', () => {
-      const obj = this._collectFormData();
+    document.getElementById('objApplyOnce').addEventListener('click', async () => {
+      const obj = await this._collectFormData();
       if (!obj) return;
       this._applyObject(obj, obj.name + '（临时）');
     });
@@ -173,35 +174,35 @@ export class ObjectLibraryManager {
         const customs = Storage.getCustomObjects();
         if (customs[name]) this._applyObject(customs[name], name);
       });
-      item.querySelector('.delete').addEventListener('click', (e) => {
+      item.querySelector('.delete').addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (confirm(`确认删除自定义物品「${name}」？`)) {
-          Storage.deleteCustomObject(name);
-          this._renderCustomList();
-          if (this.activeObjectName === name) {
-            this.activeObjectName = '';
-            this.engine.setCustomObject(null);
-            this._updateActiveInfo();
-          }
+        const ok = await showConfirm('删除物品', `确认删除自定义物品「${name}」？`, '删除');
+        if (!ok) return;
+        Storage.deleteCustomObject(name);
+        this._renderCustomList();
+        if (this.activeObjectName === name) {
+          this.activeObjectName = '';
+          this.engine.setCustomObject(null);
+          this._updateActiveInfo();
         }
       });
     });
   }
 
-  _collectFormData() {
+  async _collectFormData() {
     const name = document.getElementById('objName').value.trim();
     const mass = parseFloat(document.getElementById('objMass').value);
     const radius = parseFloat(document.getElementById('objRadius').value);
     const color = document.getElementById('objColor').value;
     const desc = document.getElementById('objDesc').value.trim();
-    if (!name) { alert('请输入物品名称'); return null; }
-    if (isNaN(mass) || mass <= 0 || mass > 100) { alert('质量必须在 0 ~ 100 kg 之间'); return null; }
-    if (isNaN(radius) || radius < 2 || radius > 30) { alert('半径必须在 2 ~ 30 px 之间'); return null; }
+    if (!name) { await showAlert('提示', '请输入物品名称'); return null; }
+    if (isNaN(mass) || mass <= 0 || mass > 100) { await showAlert('提示', '质量必须在 0 ~ 100 kg 之间'); return null; }
+    if (isNaN(radius) || radius < 2 || radius > 30) { await showAlert('提示', '半径必须在 2 ~ 30 px 之间'); return null; }
     return { name, mass, radius, color, description: desc };
   }
 
-  _saveCustomObject() {
-    const obj = this._collectFormData();
+  async _saveCustomObject() {
+    const obj = await this._collectFormData();
     if (!obj) return;
     Storage.saveCustomObject(obj.name, obj);
     this._renderCustomList();

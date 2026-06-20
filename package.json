@@ -3,12 +3,25 @@
   "version": "2.0.0",
   "description": "物绘流光 PhysFlux - 国风文艺理科氛围的在线物理动力学模拟器",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "format": "prettier --write \"src/**/*.{js,css,html}\" \"*.{js,html}\"",
+    "format:check": "prettier --check \"src/**/*.{js,css,html}\" \"*.{js,html}\""
   },
   "devDependencies": {
+    "autoprefixer": "^10.5.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "postcss": "^8.5.15",
+    "prettier": "^3.3.0",
+    "tailwindcss": "^3.4.19",
     "vite": "^5.4.0"
   }
 }

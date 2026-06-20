@@ -12,8 +12,17 @@ export class ChartRenderer {
     this.samples = [];
     this._counter = 0;
     this.maxSamples = 200;
+    this._resizeHandler = Helpers.debounce(() => this.resize(), 100);
     this.resize();
-    window.addEventListener('resize', Helpers.debounce(() => this.resize(), 100));
+    window.addEventListener('resize', this._resizeHandler);
+  }
+
+  /** 销毁渲染器：移除全局监听 */
+  destroy() {
+    if (this._resizeHandler) {
+      window.removeEventListener('resize', this._resizeHandler);
+      this._resizeHandler = null;
+    }
   }
 
   resize() {
@@ -31,11 +40,18 @@ export class ChartRenderer {
   sample(bodies, time) {
     this._counter++;
     if (this._counter % 5 !== 0) return;
-    const body = bodies[0];
-    if (!body) return;
-    const s = body.position.length();
-    const v = body.velocity.length();
-    this.samples.push({ t: time, s, v });
+    if (!bodies || bodies.length === 0) return;
+    // 记录所有物体的采样值，使多体场景下曲线有意义
+    const snapshot = { t: time, items: [] };
+    for (const body of bodies) {
+      snapshot.items.push({
+        s: body.position.length(),
+        v: body.velocity.length(),
+        color: body.color,
+        label: body.label,
+      });
+    }
+    this.samples.push(snapshot);
     if (this.samples.length > this.maxSamples) this.samples.shift();
   }
 
@@ -78,9 +94,12 @@ export class ChartRenderer {
 
     const tMin = this.samples[0].t;
     const tMax = this.samples[this.samples.length - 1].t;
+    // 取所有物体在所有采样点中的最大值，统一纵轴量纲
     let valMax = 0;
-    for (const s of this.samples) {
-      valMax = Math.max(valMax, type === 's' ? s.s : s.v);
+    for (const snap of this.samples) {
+      for (const it of snap.items) {
+        valMax = Math.max(valMax, type === 's' ? it.s : it.v);
+      }
     }
     valMax = Math.max(0.1, valMax * 1.1);
     const tRange = Math.max(0.1, tMax - tMin);
@@ -99,34 +118,41 @@ export class ChartRenderer {
     ctx.fillText(Helpers.fmt(tMin, 1) + 's', padL, padT + plotH + 3);
     ctx.fillText(Helpers.fmt(tMax, 1) + 's', padL + plotW, padT + plotH + 3);
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(toX(this.samples[0].t), toY(type === 's' ? this.samples[0].s : this.samples[0].v));
-    for (let i = 1; i < this.samples.length; i++) {
-      const s = this.samples[i];
-      ctx.lineTo(toX(s.t), toY(type === 's' ? s.s : s.v));
+    // 物体数量决定系列数；按物体索引绘制各自曲线
+    const bodyCount = this.samples[this.samples.length - 1].items.length;
+    for (let bi = 0; bi < bodyCount; bi++) {
+      const firstSnap = this.samples.find((s) => s.items[bi]);
+      if (!firstSnap) continue;
+      const seriesColor = firstSnap.items[bi].color || color;
+
+      ctx.save();
+      ctx.beginPath();
+      let started = false;
+      for (let i = 0; i < this.samples.length; i++) {
+        const it = this.samples[i].items[bi];
+        if (!it) continue;
+        const x = toX(this.samples[i].t);
+        const y = toY(type === 's' ? it.s : it.v);
+        if (!started) { ctx.moveTo(x, y); started = true; }
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = seriesColor;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+
+      // 末点高亮
+      for (let i = this.samples.length - 1; i >= 0; i--) {
+        const it = this.samples[i].items[bi];
+        if (it) {
+          ctx.fillStyle = seriesColor;
+          ctx.beginPath();
+          ctx.arc(toX(this.samples[i].t), toY(type === 's' ? it.s : it.v), 3, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+      }
+      ctx.restore();
     }
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.8;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-
-    ctx.lineTo(toX(this.samples[this.samples.length - 1].t), padT + plotH);
-    ctx.lineTo(toX(this.samples[0].t), padT + plotH);
-    ctx.closePath();
-    const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
-    grad.addColorStop(0, Helpers.hexToRgba(color, 0.25));
-    grad.addColorStop(1, Helpers.hexToRgba(color, 0));
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.restore();
-
-    const last = this.samples[this.samples.length - 1];
-    const lx = toX(last.t);
-    const ly = toY(type === 's' ? last.s : last.v);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(lx, ly, 3, 0, Math.PI * 2);
-    ctx.fill();
   }
 }
