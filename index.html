@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>物绘流光 PhysFlux · 物理运动轨迹模拟器</title>
+  <meta name="description" content="物绘流光 PhysFlux —— 国风文艺理科氛围的在线物理动力学模拟器，实时渲染运动轨迹。" />
+
+  <!-- 内联 SVG favicon：水墨青圆，呼应「物绘流光」主题 -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%23A8B5B0' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23D4A574'/%3E%3C/svg%3E" />
+
+  <!-- 思源宋体（书卷感）+ JetBrains Mono（等宽代码感） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS v3 Play CDN，含国风色板自定义配置 -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <script>
+    // Tailwind 国风莫兰迪色板扩展
+    tailwind.config = {
+      darkMode: ['class', '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          colors: {
+            // 国风莫兰迪色板
+            ink: {
+              50: '#F5F2EC',   // 宣纸色（浅色背景）
+              100: '#EDE8DF',
+              200: '#D9D2C5',
+              300: '#A8B5B0',  // 水墨青（主色）
+              400: '#8B9A94',
+              500: '#6B7B8C',  // 淡墨蓝（辅助）
+              600: '#5A6A78',
+              700: '#3E4A55',
+              800: '#2A323A',
+              900: '#1E2226',  // 墨夜色（深色背景）
+            },
+            ochre: {
+              light: '#E0C9B0',
+              DEFAULT: '#C9A88A', // 浅赭石（辅助）
+              dark: '#B08D6A',
+            },
+            gold: {
+              light: '#E6C49A',
+              DEFAULT: '#D4A574', // 流光金（强调）
+              dark: '#B8895A',
+            },
+          },
+          fontFamily: {
+            serif: ['"Noto Serif SC"', 'serif'],         // 中文宋体
+            mono: ['"JetBrains Mono"', 'monospace'],      // 英文等宽
+          },
+        },
+      },
+    };
+  </script>
+
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="font-serif bg-ink-50 text-ink-700 dark:bg-ink-900 dark:text-ink-200 transition-colors duration-500">
+
+  <!-- ============ 顶部标题栏 ============ -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-title">
+        <h1 class="title-cn">物绘流光</h1>
+        <span class="title-en font-mono">PhysFlux</span>
+        <span class="title-tag">物理运动轨迹模拟器</span>
+      </div>
+      <div class="header-actions">
+        <button id="themeToggle" class="icon-btn" title="切换深浅主题" aria-label="切换主题">
+          <span class="theme-icon-light">☾</span>
+          <span class="theme-icon-dark">☀</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ 主体三栏布局 ============ -->
+  <main class="app-main">
+    <!-- 左侧参数控制面板 -->
+    <aside id="leftPanel" class="panel panel-left">
+      <div class="panel-section">
+        <h2 class="panel-title">题型预设</h2>
+        <select id="modelSelect" class="select-input">
+          <option value="projectile">平抛运动</option>
+          <option value="freefall">自由落体</option>
+          <option value="circular">圆周运动</option>
+          <option value="gravity">万有引力</option>
+          <option value="collision">弹性碰撞</option>
+          <option value="uniform">匀变速直线</option>
+        </select>
+      </div>
+
+      <div class="panel-section">
+        <h2 class="panel-title">力学参数</h2>
+        <div id="paramControls" class="param-list">
+          <!-- 参数控件由 JS 动态生成 -->
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h2 class="panel-title">播放控制</h2>
+        <div class="player-controls">
+          <button id="btnPlay" class="btn btn-primary" title="播放/暂停">▶ 播放</button>
+          <button id="btnStep" class="btn" title="单步推演">⏭ 单步</button>
+          <button id="btnReset" class="btn" title="重置初始状态">↺ 重置</button>
+          <button id="btnClear" class="btn" title="清除轨迹">✕ 清除</button>
+          <button id="btnExport" class="btn" title="导出运动图像">⤓ 导出</button>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h2 class="panel-title">方案管理</h2>
+        <div class="preset-controls">
+          <button id="btnSavePreset" class="btn btn-outline">保存当前方案</button>
+          <select id="presetSelect" class="select-input mt-2">
+            <option value="">— 选择已保存方案 —</option>
+          </select>
+          <button id="btnLoadPreset" class="btn btn-outline mt-2">载入方案</button>
+          <button id="btnDeletePreset" class="btn btn-ghost mt-2">删除方案</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 中央可视化画布 -->
+    <section class="canvas-wrap">
+      <canvas id="mainCanvas" class="main-canvas"></canvas>
+      <div id="hoverTip" class="hover-tip" hidden></div>
+      <div class="canvas-badge font-mono" id="canvasBadge">t = 0.00 s</div>
+    </section>
+
+    <!-- 右侧数据面板 -->
+    <aside id="rightPanel" class="panel panel-right">
+      <div class="panel-section">
+        <h2 class="panel-title">实时数据</h2>
+        <div class="data-table-wrap">
+          <table class="data-table font-mono">
+            <thead>
+              <tr>
+                <th>物体</th>
+                <th>位移(m)</th>
+                <th>速度(m/s)</th>
+                <th>加速度(m/s²)</th>
+              </tr>
+            </thead>
+            <tbody id="dataTableBody">
+              <!-- 数据行由 JS 动态生成 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h2 class="panel-title">位移 - 时间</h2>
+        <canvas id="chartST" class="mini-chart"></canvas>
+      </div>
+
+      <div class="panel-section">
+        <h2 class="panel-title">速度 - 时间</h2>
+        <canvas id="chartVT" class="mini-chart"></canvas>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ============ 底部说明区 ============ -->
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <div class="footer-formula">
+        <span class="footer-label">当前公式</span>
+        <code id="formulaText" class="formula-code font-mono"></code>
+      </div>
+      <div class="footer-explain">
+        <span class="footer-label">题型解析</span>
+        <p id="explainText" class="explain-text"></p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 移动端面板切换按钮 -->
+  <button id="mobilePanelToggle" class="mobile-panel-toggle" aria-label="切换面板">☰</button>
+
+  <!-- 脚本按依赖顺序加载（纯静态，无构建） -->
+  <script src="js/utils/helpers.js"></script>
+  <script src="js/utils/storage.js"></script>
+  <script src="js/physics/vector.js"></script>
+  <script src="js/physics/models/base.js"></script>
+  <script src="js/physics/models/projectile.js"></script>
+  <script src="js/physics/models/freefall.js"></script>
+  <script src="js/physics/models/circular.js"></script>
+  <script src="js/physics/models/gravity.js"></script>
+  <script src="js/physics/models/collision.js"></script>
+  <script src="js/physics/models/uniform.js"></script>
+  <script src="js/physics/engine.js"></script>
+  <script src="js/config/presets.js"></script>
+  <script src="js/render/axes.js"></script>
+  <script src="js/render/trail.js"></script>
+  <script src="js/render/canvas.js"></script>
+  <script src="js/render/charts.js"></script>
+  <script src="js/ui/controls.js"></script>
+  <script src="js/ui/player.js"></script>
+  <script src="js/ui/presets.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
