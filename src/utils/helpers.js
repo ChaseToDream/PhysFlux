@@ -63,13 +63,33 @@ export const Helpers = {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   },
 
-  /** 十六进制颜色转 rgba 字符串 */
+  /**
+   * 将十六进制颜色转为 rgba 字符串。
+   * 支持 #RGB、#RRGGBB、#RRGGBBAA 三种格式；非法输入回退为不透明黑，
+   * 避免 parseInt 产生 NaN 导致 canvas 颜色解析失败。
+   */
   hexToRgba(hex, alpha) {
-    const h = hex.replace('#', '');
-    const r = parseInt(h.substring(0, 2), 16);
-    const g = parseInt(h.substring(2, 4), 16);
-    const b = parseInt(h.substring(4, 6), 16);
-    return `rgba(${r},${g},${b},${Helpers.clamp(alpha, 0, 1)})`;
+    const a = Helpers.clamp(alpha, 0, 1);
+    if (typeof hex !== 'string') return `rgba(0,0,0,${a})`;
+    const h = hex.trim().replace(/^#/, '');
+    let r, g, b;
+    if (/^[0-9a-fA-F]{3}$/.test(h)) {
+      r = parseInt(h[0] + h[0], 16);
+      g = parseInt(h[1] + h[1], 16);
+      b = parseInt(h[2] + h[2], 16);
+    } else if (/^[0-9a-fA-F]{6}$/.test(h)) {
+      r = parseInt(h.substring(0, 2), 16);
+      g = parseInt(h.substring(2, 4), 16);
+      b = parseInt(h.substring(4, 6), 16);
+    } else if (/^[0-9a-fA-F]{8}$/.test(h)) {
+      // #RRGGBBAA：忽略自带 alpha，使用传入 alpha 统一控制
+      r = parseInt(h.substring(0, 2), 16);
+      g = parseInt(h.substring(2, 4), 16);
+      b = parseInt(h.substring(4, 6), 16);
+    } else {
+      return `rgba(0,0,0,${a})`;
+    }
+    return `rgba(${r},${g},${b},${a})`;
   },
 
   /** 显示短暂提示 Toast */

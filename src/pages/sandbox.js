@@ -616,10 +616,17 @@ export class SandboxPage {
 
   startDataLoop() {
     const loop = () => {
-      this._updateBadge();
-      const time = this.engine.getElapsedTime();
-      this.chartEnergy.sample(this.engine, time);
-      this.chartEnergy.draw();
+      // 单帧异常隔离：图表采样/绘制出错不应终止数据循环
+      try {
+        this._updateBadge();
+        const time = this.engine.getElapsedTime();
+        this.chartEnergy.sample(this.engine, time);
+        this.chartEnergy.draw();
+      } catch (e) {
+        console.error('[PhysFlux] 沙盒数据循环异常:', e);
+        this.stopDataLoop();
+        return;
+      }
       this._dataLoopId = requestAnimationFrame(loop);
     };
     loop();

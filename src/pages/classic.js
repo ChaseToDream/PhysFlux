@@ -207,16 +207,23 @@ export class ClassicPage {
 
   startDataLoop() {
     const loop = () => {
-      this.updateDataTable();
-      this.updateBadge();
-      const bodies = this.engine.getBodies();
-      const time = this.engine.getElapsedTime();
-      this.chartST.sample(bodies, time);
-      this.chartVT.sample(bodies, time);
-      this.chartEnergy.sample(this.engine, time);
-      this.chartST.draw('s', Helpers.cssVar('--vector-velocity') || '#6B7B8C');
-      this.chartVT.draw('v', Helpers.cssVar('--vector-force') || '#C9A88A');
-      this.chartEnergy.draw();
+      // 单帧异常隔离：图表采样/绘制出错不应终止数据循环
+      try {
+        this.updateDataTable();
+        this.updateBadge();
+        const bodies = this.engine.getBodies();
+        const time = this.engine.getElapsedTime();
+        this.chartST.sample(bodies, time);
+        this.chartVT.sample(bodies, time);
+        this.chartEnergy.sample(this.engine, time);
+        this.chartST.draw('s', Helpers.cssVar('--vector-velocity') || '#6B7B8C');
+        this.chartVT.draw('v', Helpers.cssVar('--vector-force') || '#C9A88A');
+        this.chartEnergy.draw();
+      } catch (e) {
+        console.error('[PhysFlux] 经典页数据循环异常:', e);
+        this.stopDataLoop();
+        return;
+      }
       this._dataLoopId = requestAnimationFrame(loop);
     };
     loop();

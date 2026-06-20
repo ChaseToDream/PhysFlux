@@ -226,9 +226,15 @@ export class CanvasRenderer {
     const now = performance.now();
     const dt = Math.min(0.05, (now - this.lastTime) / 1000);
     this.lastTime = now;
-    this.engine.step(dt);
-    this.render();
-    requestAnimationFrame(this._loop);
+    // 单帧异常隔离：避免某帧 step/render 抛错导致整个动画循环终止
+    try {
+      this.engine.step(dt);
+      this.render();
+    } catch (e) {
+      console.error('[PhysFlux] 渲染循环异常:', e);
+      this.stop();
+    }
+    if (this.running) requestAnimationFrame(this._loop);
   };
 
   renderOnce() {
