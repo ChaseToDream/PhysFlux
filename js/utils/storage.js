@@ -77,6 +77,58 @@ const Storage = {
   setTheme(theme) {
     this.set('theme', theme);
   },
+
+  /* ---------- 自定义物理参数方案 ---------- */
+
+  /** 读取全部自定义物理参数方案 */
+  getCustomParams() {
+    return this.get('custom_params', {});
+  },
+
+  /** 保存单个自定义物理参数方案 */
+  saveCustomParams(name, data) {
+    const all = this.getCustomParams();
+    all[name] = data;
+    this.set('custom_params', all);
+  },
+
+  /** 删除自定义物理参数方案 */
+  deleteCustomParams(name) {
+    const all = this.getCustomParams();
+    delete all[name];
+    this.set('custom_params', all);
+  },
+
+  /** 读取当前生效的自定义物理参数（即时配置） */
+  getActiveCustomParams() {
+    return this.get('active_custom_params', null);
+  },
+
+  /** 保存当前生效的自定义物理参数 */
+  setActiveCustomParams(data) {
+    this.set('active_custom_params', data);
+  },
+
+  /* ---------- 自定义物品库 ---------- */
+
+  /** 读取全部自定义物品 */
+  getCustomObjects() {
+    return this.get('custom_objects', {});
+  },
+
+  /** 保存单个自定义物品 */
+  saveCustomObject(name, data) {
+    const all = this.getCustomObjects();
+    all[name] = data;
+    this.set('custom_objects', all);
+  },
+
+  /** 删除自定义物品 */
+  deleteCustomObject(name) {
+    const all = this.getCustomObjects();
+    delete all[name];
+    this.set('custom_objects', all);
+  },
 };
 
 window.Storage = Storage;

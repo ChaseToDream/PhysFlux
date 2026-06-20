@@ -70,6 +70,9 @@
         <span class="title-tag">物理运动轨迹模拟器</span>
       </div>
       <div class="header-actions">
+        <button id="helpBtn" class="icon-btn" title="使用说明" aria-label="使用说明">
+          <span>?</span>
+        </button>
         <button id="themeToggle" class="icon-btn" title="切换深浅主题" aria-label="切换主题">
           <span class="theme-icon-light">☾</span>
           <span class="theme-icon-dark">☀</span>
@@ -82,45 +85,95 @@
   <main class="app-main">
     <!-- 左侧参数控制面板 -->
     <aside id="leftPanel" class="panel panel-left">
-      <div class="panel-section">
-        <h2 class="panel-title">题型预设</h2>
-        <select id="modelSelect" class="select-input">
-          <option value="projectile">平抛运动</option>
-          <option value="freefall">自由落体</option>
-          <option value="circular">圆周运动</option>
-          <option value="gravity">万有引力</option>
-          <option value="collision">弹性碰撞</option>
-          <option value="uniform">匀变速直线</option>
-        </select>
-      </div>
-
-      <div class="panel-section">
-        <h2 class="panel-title">力学参数</h2>
-        <div id="paramControls" class="param-list">
-          <!-- 参数控件由 JS 动态生成 -->
-        </div>
-      </div>
-
-      <div class="panel-section">
-        <h2 class="panel-title">播放控制</h2>
-        <div class="player-controls">
-          <button id="btnPlay" class="btn btn-primary" title="播放/暂停">▶ 播放</button>
-          <button id="btnStep" class="btn" title="单步推演">⏭ 单步</button>
-          <button id="btnReset" class="btn" title="重置初始状态">↺ 重置</button>
-          <button id="btnClear" class="btn" title="清除轨迹">✕ 清除</button>
-          <button id="btnExport" class="btn" title="导出运动图像">⤓ 导出</button>
-        </div>
-      </div>
-
-      <div class="panel-section">
-        <h2 class="panel-title">方案管理</h2>
-        <div class="preset-controls">
-          <button id="btnSavePreset" class="btn btn-outline">保存当前方案</button>
-          <select id="presetSelect" class="select-input mt-2">
-            <option value="">— 选择已保存方案 —</option>
+      <!-- 题型预设 -->
+      <div class="panel-section collapsible">
+        <h2 class="panel-title collapsible-header" data-target="modelSelectSection">
+          <span>题型预设</span>
+          <span class="collapse-icon">▾</span>
+        </h2>
+        <div class="collapsible-body" id="modelSelectSection">
+          <select id="modelSelect" class="select-input">
+            <option value="projectile">平抛运动</option>
+            <option value="freefall">自由落体</option>
+            <option value="circular">圆周运动</option>
+            <option value="gravity">万有引力</option>
+            <option value="collision">弹性碰撞</option>
+            <option value="uniform">匀变速直线</option>
           </select>
-          <button id="btnLoadPreset" class="btn btn-outline mt-2">载入方案</button>
-          <button id="btnDeletePreset" class="btn btn-ghost mt-2">删除方案</button>
+        </div>
+      </div>
+
+      <!-- 力学参数 -->
+      <div class="panel-section collapsible">
+        <h2 class="panel-title collapsible-header" data-target="paramControlsSection">
+          <span>力学参数</span>
+          <span class="collapse-icon">▾</span>
+        </h2>
+        <div class="collapsible-body" id="paramControlsSection">
+          <div id="paramControls" class="param-list">
+            <!-- 参数控件由 JS 动态生成 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 自定义物理参数 -->
+      <div class="panel-section collapsible">
+        <h2 class="panel-title collapsible-header" data-target="customParamsSection">
+          <span>自定义物理参数</span>
+          <span class="collapse-icon">▾</span>
+        </h2>
+        <div class="collapsible-body" id="customParamsSection">
+          <div id="customParamsPanel">
+            <!-- 自定义参数控件由 JS 动态生成 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 模拟物品库 -->
+      <div class="panel-section collapsible">
+        <h2 class="panel-title collapsible-header" data-target="objectLibrarySection">
+          <span>模拟物品库</span>
+          <span class="collapse-icon">▾</span>
+        </h2>
+        <div class="collapsible-body" id="objectLibrarySection">
+          <div id="objectLibraryPanel">
+            <!-- 物品库控件由 JS 动态生成 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 播放控制 -->
+      <div class="panel-section collapsible">
+        <h2 class="panel-title collapsible-header" data-target="playerSection">
+          <span>播放控制</span>
+          <span class="collapse-icon">▾</span>
+        </h2>
+        <div class="collapsible-body" id="playerSection">
+          <div class="player-controls">
+            <button id="btnPlay" class="btn btn-primary" title="播放/暂停">▶ 播放</button>
+            <button id="btnStep" class="btn" title="单步推演">⏭ 单步</button>
+            <button id="btnReset" class="btn" title="重置初始状态">↺ 重置</button>
+            <button id="btnClear" class="btn" title="清除轨迹">✕ 清除</button>
+            <button id="btnExport" class="btn" title="导出运动图像">⤓ 导出</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 方案管理 -->
+      <div class="panel-section collapsible">
+        <h2 class="panel-title collapsible-header" data-target="presetSection">
+          <span>方案管理</span>
+          <span class="collapse-icon">▾</span>
+        </h2>
+        <div class="collapsible-body" id="presetSection">
+          <div class="preset-controls">
+            <button id="btnSavePreset" class="btn btn-outline">保存当前方案</button>
+            <select id="presetSelect" class="select-input mt-2">
+              <option value="">— 选择已保存方案 —</option>
+            </select>
+            <button id="btnLoadPreset" class="btn btn-outline mt-2">载入方案</button>
+            <button id="btnDeletePreset" class="btn btn-ghost mt-2">删除方案</button>
+          </div>
         </div>
       </div>
     </aside>
@@ -182,6 +235,20 @@
   <!-- 移动端面板切换按钮 -->
   <button id="mobilePanelToggle" class="mobile-panel-toggle" aria-label="切换面板">☰</button>
 
+  <!-- 帮助说明模态框 -->
+  <div id="helpModal" class="help-modal" hidden>
+    <div class="help-modal-overlay" id="helpOverlay"></div>
+    <div class="help-modal-content">
+      <div class="help-modal-header">
+        <h3>物绘流光 · 使用说明</h3>
+        <button id="helpClose" class="help-close" aria-label="关闭">✕</button>
+      </div>
+      <div class="help-modal-body" id="helpBody">
+        <!-- 帮助内容由 JS 动态生成 -->
+      </div>
+    </div>
+  </div>
+
   <!-- 脚本按依赖顺序加载（纯静态，无构建） -->
   <script src="js/utils/helpers.js"></script>
   <script src="js/utils/storage.js"></script>
@@ -195,6 +262,7 @@
   <script src="js/physics/models/uniform.js"></script>
   <script src="js/physics/engine.js"></script>
   <script src="js/config/presets.js"></script>
+  <script src="js/config/objects.js"></script>
   <script src="js/render/axes.js"></script>
   <script src="js/render/trail.js"></script>
   <script src="js/render/canvas.js"></script>
@@ -202,6 +270,8 @@
   <script src="js/ui/controls.js"></script>
   <script src="js/ui/player.js"></script>
   <script src="js/ui/presets.js"></script>
+  <script src="js/ui/customParams.js"></script>
+  <script src="js/ui/objectLibrary.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

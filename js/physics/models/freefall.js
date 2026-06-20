@@ -17,15 +17,19 @@ class FreeFallModel extends BaseModel {
 
   initialize() {
     super.initialize();
+    // 获取重力向量（支持自定义重力方向）
+    const g = this.getGravityVector();
     const body = this.createBody({
       mass: this.params.mass,
       position: new Vec2(0, this.params.radius),  // 从高处释放
       velocity: new Vec2(0, -this.params.initialVelocity), // 初速度向下
-      acceleration: new Vec2(0, -this.params.gravity),
+      acceleration: new Vec2(g.x, g.y),
       color: '#6B7B8C',
       label: '落体',
     });
     this.bodies = [body];
+    // 缓存重力向量供 step 使用
+    this._gravity = g;
     return this.bodies;
   }
 
@@ -33,16 +37,21 @@ class FreeFallModel extends BaseModel {
     super.step(dt);
     if (this.finished) return;
     const body = this.bodies[0];
-    // v = v₀ + gt（向下），位置更新
-    body.velocity.y += body.acceleration.y * dt;
+    const g = this._gravity;
+    // v = v₀ + g·t，位置更新（支持任意方向重力）
+    body.velocity.x += g.x * dt;
+    body.velocity.y += g.y * dt;
+    body.position.x += body.velocity.x * dt;
     body.position.y += body.velocity.y * dt;
-    body.force = new Vec2(0, body.mass * body.acceleration.y);
+    body.force = new Vec2(body.mass * g.x, body.mass * g.y);
     this.pushTrail(body);
 
-    // 落地判定
-    if (body.position.y <= 0 && this.elapsedTime > 0.05) {
-      body.position.y = 0;
-      this.finished = true;
+    // 落地判定（仅当默认向下重力时生效）
+    if (!this.engine || !this.engine.customGravity || !this.engine.customGravity.enabled) {
+      if (body.position.y <= 0 && this.elapsedTime > 0.05) {
+        body.position.y = 0;
+        this.finished = true;
+      }
     }
   }
 

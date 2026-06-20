@@ -7,9 +7,12 @@
 class BaseModel {
   /**
    * @param {Object} params 参数对象（来自控制面板）
+   * @param {PhysicsEngine} engine 物理引擎引用（用于访问自定义重力等全局配置）
    */
-  constructor(params) {
+  constructor(params, engine) {
     this.params = params || {};
+    /** @type {PhysicsEngine} */
+    this.engine = engine || null;
     /** @type {Array} 运动物体列表 */
     this.bodies = [];
     /** @type {number} 模拟累计时间 */
@@ -63,6 +66,25 @@ class BaseModel {
   }
 
   /* ---------- 通用辅助方法 ---------- */
+
+  /**
+   * 获取当前应使用的重力加速度向量（物理坐标系，y 向上）
+   * 优先使用引擎的自定义重力配置，否则使用参数中的 gravity（默认向下）
+   * @returns {Vec2} 重力加速度向量
+   */
+  getGravityVector() {
+    if (this.engine && this.engine.customGravity && this.engine.customGravity.enabled) {
+      const { magnitude, angleDeg } = this.engine.customGravity;
+      const rad = Helpers.degToRad(angleDeg);
+      return new Vec2(
+        magnitude * Math.cos(rad),
+        magnitude * Math.sin(rad)
+      );
+    }
+    // 默认：重力向下（y 负方向），大小取 params.gravity
+    const g = this.params.gravity || 0;
+    return new Vec2(0, -g);
+  }
 
   /**
    * 创建一个物体状态对象

@@ -18,6 +18,10 @@ class PhysicsEngine {
     this.timeScale = 1.0;
     /** 固定物理步长（秒），保证积分稳定 */
     this.fixedDt = 1 / 60;
+    /** 自定义重力配置（覆盖模型默认重力） */
+    this.customGravity = { enabled: false, magnitude: 9.8, angleDeg: 270 };
+    /** 自定义物品属性（覆盖模型默认物体属性） */
+    this.customObject = null;
   }
 
   /* ---------- 模型注册 ---------- */
@@ -64,8 +68,62 @@ class PhysicsEngine {
     }
     this.currentType = type;
     this.params = params || this.buildDefaultParams(type);
-    this.currentModel = new entry.class(this.params);
+    this.currentModel = new entry.class(this.params, this);
     this.currentModel.initialize();
+    // 应用自定义物品属性（覆盖物体质量、半径、颜色）
+    this._applyCustomObject();
+  }
+
+  /**
+   * 将自定义物品属性应用到当前模型的所有物体
+   * @private
+   */
+  _applyCustomObject() {
+    if (!this.currentModel || !this.customObject) return;
+    const obj = this.customObject;
+    for (const body of this.currentModel.bodies) {
+      if (obj.mass !== undefined) body.mass = obj.mass;
+      if (obj.radius !== undefined) body.radius = obj.radius;
+      if (obj.color !== undefined) body.color = obj.color;
+    }
+  }
+
+  /**
+   * 设置自定义物品属性并应用到当前模型
+   * @param {Object|null} obj 物品属性 { mass, radius, color }，null 表示清除
+   */
+  setCustomObject(obj) {
+    this.customObject = obj;
+    this._applyCustomObject();
+  }
+
+  /**
+   * 获取自定义重力向量（物理坐标系，y 向上）
+   * 当自定义重力启用时返回自定义值，否则返回 null
+   * @returns {Vec2|null} 重力加速度向量
+   */
+  getCustomGravityVector() {
+    if (!this.customGravity.enabled) return null;
+    const { magnitude, angleDeg } = this.customGravity;
+    const rad = Helpers.degToRad(angleDeg);
+    // 角度定义：0° 向右，90° 向上，180° 向左，270° 向下
+    return new Vec2(
+      magnitude * Math.cos(rad),
+      magnitude * Math.sin(rad)
+    );
+  }
+
+  /**
+   * 设置自定义重力配置
+   * @param {Object} config { enabled, magnitude, angleDeg }
+   */
+  setCustomGravity(config) {
+    this.customGravity = Object.assign({}, this.customGravity, config);
+    // 若当前模型已加载，重新初始化以应用新重力
+    if (this.currentModel) {
+      this.currentModel.initialize();
+      this._applyCustomObject();
+    }
   }
 
   /**

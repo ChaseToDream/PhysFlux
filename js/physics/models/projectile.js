@@ -23,15 +23,20 @@ class ProjectileModel extends BaseModel {
     const vx = v0 * Math.cos(theta);
     const vy = v0 * Math.sin(theta);
 
+    // 获取重力向量（支持自定义重力方向）
+    const g = this.getGravityVector();
+
     const body = this.createBody({
       mass: this.params.mass,
       position: new Vec2(-20, 0),   // 从左侧地面起抛，便于观察完整轨迹
       velocity: new Vec2(vx, vy),
-      acceleration: new Vec2(0, -this.params.gravity),
+      acceleration: new Vec2(g.x, g.y),
       color: '#A8B5B0',
       label: '抛体',
     });
     this.bodies = [body];
+    // 缓存重力向量供 step 使用
+    this._gravity = g;
     return this.bodies;
   }
 
@@ -39,19 +44,23 @@ class ProjectileModel extends BaseModel {
     super.step(dt);
     if (this.finished) return;
     const body = this.bodies[0];
+    const g = this._gravity;
     // 半隐式欧拉积分：先更新速度，再更新位置，能量更稳定
-    // a = (0, -g)，重力加速度恒定
-    body.velocity.y += body.acceleration.y * dt;
+    // a = g（重力加速度恒定，支持任意方向）
+    body.velocity.x += g.x * dt;
+    body.velocity.y += g.y * dt;
     body.position.x += body.velocity.x * dt;
     body.position.y += body.velocity.y * dt;
     // 合力 F = ma
-    body.force = new Vec2(0, body.mass * body.acceleration.y);
+    body.force = new Vec2(body.mass * g.x, body.mass * g.y);
     this.pushTrail(body);
 
-    // 落地判定：回到地面以下则结束
-    if (body.position.y <= -0.5 && this.elapsedTime > 0.1) {
-      body.position.y = 0;
-      this.finished = true;
+    // 落地判定：回到地面以下则结束（仅当默认向下重力时生效）
+    if (!this.engine || !this.engine.customGravity || !this.engine.customGravity.enabled) {
+      if (body.position.y <= -0.5 && this.elapsedTime > 0.1) {
+        body.position.y = 0;
+        this.finished = true;
+      }
     }
   }
 

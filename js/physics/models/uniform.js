@@ -35,7 +35,9 @@ class UniformModel extends BaseModel {
     const body = this.bodies[0];
     const a0 = this.params.gravity;          // 外加加速度
     const mu = this.params.friction;          // 摩擦系数
-    const g = 9.8;
+    // 摩擦计算使用的 g 值：自定义重力启用时取其大小，否则默认 9.8
+    const customG = (this.engine && this.engine.customGravity && this.engine.customGravity.enabled)
+      ? this.engine.customGravity.magnitude : 9.8;
 
     // 摩擦力方向与速度方向相反，产生减速度 μg
     // 合加速度 = 外加加速度 − 摩擦减速度（仅当有运动趋势时）
@@ -43,9 +45,9 @@ class UniformModel extends BaseModel {
     const speed = body.velocity.x;
     if (Math.abs(speed) > 0.01) {
       // 摩擦力方向与速度相反
-      const frictionDecel = mu * g * Math.sign(speed);
+      const frictionDecel = mu * customG * Math.sign(speed);
       aNet = a0 - frictionDecel;
-    } else if (Math.abs(a0) < mu * g) {
+    } else if (Math.abs(a0) < mu * customG) {
       // 静摩擦平衡，物体静止
       aNet = 0;
       body.velocity.x = 0;
@@ -55,7 +57,7 @@ class UniformModel extends BaseModel {
     // v = v₀ + a·t
     body.velocity.x += aNet * dt;
     // 摩擦力下速度过零则停止（避免反向抖动）
-    if (mu > 0 && Math.abs(a0) < mu * g && Math.abs(body.velocity.x) < 0.05) {
+    if (mu > 0 && Math.abs(a0) < mu * customG && Math.abs(body.velocity.x) < 0.05) {
       body.velocity.x = 0;
     }
     // s = s₀ + v·dt
